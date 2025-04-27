@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Obtener historial de usuarios (últimos 20 eventos)
+HISTORIAL=$(last | head -n 20)
+
+# Guardar historial en un archivo temporal
+echo "$HISTORIAL" > /tmp/historial.txt
+
+# Mostrar la lista en un cuadro con scroll
+dialog --title "Historial de Usuarios" --textbox /tmp/historial.txt 20 80
+
+# Limpiar archivo temporal
+rm /tmp/historial.txt
+
+# Mensaje final antes de salir
+dialog --title "Fin del Script" --msgbox "El monitor de actividad ha finalizado." 8 50
+clear
+exit 0

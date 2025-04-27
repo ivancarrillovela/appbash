@@ -1,0 +1,86 @@
+#!/bin/bash
+# Script para escanear virus, malware y rootkits en Linux sin usar dialog.
+
+# Solicitar permisos de sudo al inicio para evitar bloqueos
+sudo -v
+if [ $? -ne 0 ]; then
+    echo "❌ Error: No se obtuvieron permisos de administrador. Saliendo."
+    exit 1
+fi
+
+# Crear archivo temporal para el informe
+LOGFILE=$(mktemp /tmp/scan_log.XXXXXX)
+
+# Mostrar mensaje de inicio
+echo "🔍 Iniciando escaneo del sistema..."
+echo "-----------------------------------"
+echo "Generando informe en: $LOGFILE"
+sleep 1
+
+# Escaneo con ClamAV
+echo ""
+echo "🦠 Escaneando con ClamAV..."
+if command -v clamscan &>/dev/null; then
+    sudo clamscan -r --bell -i / > "$LOGFILE" 2>&1
+    echo "✅ ClamAV finalizado." | tee -a "$LOGFILE"
+else
+    echo "⚠️ ClamAV no está instalado. Instala con: sudo apt install clamav" | tee -a "$LOGFILE"
+fi
+
+# Escaneo con chkrootkit si no estamos en WSL
+if ! grep -qi "microsoft" /proc/version; then
+    echo ""
+    echo "🕵️‍♂️ Escaneando con chkrootkit..."
+    if command -v chkrootkit &>/dev/null; then
+        sudo chkrootkit >> "$LOGFILE" 2>&1
+        echo "✅ chkrootkit finalizado." | tee -a "$LOGFILE"
+    else
+        echo "⚠️ chkrootkit no está instalado. Instala con: sudo apt install chkrootkit" | tee -a "$LOGFILE"
+    fi
+else
+    echo "💡 WSL detectado. Omitiendo escaneo de rootkits."
+fi
+
+echo ""
+echo "📝 Análisis finalizado."
+
+# Verificar si se encontraron amenazas
+if grep -q "FOUND" "$LOGFILE" || grep -qi "INFECTED" "$LOGFILE" || grep -qi "Warning" "$LOGFILE"; then
+    echo "⚠️ Se encontraron posibles amenazas. Revise el informe."
+    echo ""
+    echo "🔎 Archivos detectados:"
+    grep -Ei "FOUND|INFECTED|Warning" "$LOGFILE"
+else
+    echo "✅ No se encontraron amenazas en el sistema."
+fi
+
+# Mostrar menú de opciones
+echo ""
+while true; do
+    echo "📌 Opciones:"
+    echo "1) Ver informe detallado"
+    echo "2) Guardar informe en ~/escaneo_reporte.txt"
+    echo "3) Salir"
+    read -p "Seleccione una opción: " OPCION
+
+    case $OPCION in
+        1) cat "$LOGFILE" | less ;;
+        2) 
+            cp "$LOGFILE" ~/escaneo_reporte.txt
+            echo "✅ Informe guardado en ~/escaneo_reporte.txt"
+            ;;
+        3) break ;;
+        *) echo "❌ Opción inválida. Inténtelo de nuevo." ;;
+    esac
+done
+
+# Limpiar archivo temporal
+rm "$LOGFILE"
+clear
+echo "👋 ¡Escaneo finalizado! Gracias por usar el script."
+
+
+
+
+
+

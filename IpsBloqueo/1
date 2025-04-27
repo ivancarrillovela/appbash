@@ -1,0 +1,130 @@
+#!/bin/bash
+
+HISTORIAL="/tmp/ip_monitor_history.log"
+
+# Crear historial si no existe
+if [ ! -f "$HISTORIAL" ]; then
+    touch "$HISTORIAL"
+fi
+
+# Función para registrar historial
+registrar_historial() {
+    IP=$1
+    ESTADO=$2
+    NOMBRE_SITIO=$3
+    FECHA=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "$FECHA - $IP - $NOMBRE_SITIO - $ESTADO" >> "$HISTORIAL"
+}
+
+# Obtener nombre de dominio de la IP
+obtener_nombre_sitio() {
+    IP=$1
+    host "$IP" 2>/dev/null | awk '/domain name pointer/ {print $5}' || echo "Desconocido"
+}
+
+# Detectar el entorno (físico, virtualizado o WSL)
+detectar_entorno() {
+    if grep -qi "microsoft" /proc/version; then
+        echo "WSL"
+        return 1
+    elif command -v systemd-detect-virt >/dev/null 2>&1 && [[ $(systemd-detect-virt 2>/dev/null) != "none" ]]; then
+        echo "Virtualizado ($(systemd-detect-virt))"
+        return 0
+    else
+        echo "Físico"
+        return 0
+    fi
+}
+
+# Obtener IPs de conexiones activas
+obtener_ips_navegacion() {
+    ss -ntu 2>/dev/null | awk 'NR>1 {print $5}' | cut -d':' -f1 | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | \
+    grep -vE '^(127\.|0\.0\.0\.0)' | sort -u
+}
+
+# Comprobar si una IP es peligrosa
+es_ip_peligrosa() {
+    IP=$1
+    LISTA_NEGRA="https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt"
+    
+    # Descargar blacklist si no existe o está vieja
+    if [[ ! -f /tmp/ip_blacklist.txt || $(find /tmp/ip_blacklist.txt -mtime +1) ]]; then
+        curl -s "$LISTA_NEGRA" -o /tmp/ip_blacklist.txt
+    fi
+
+    if grep -q "$IP" /tmp/ip_blacklist.txt; then
+        return 0  # IP peligrosa
+    else
+        return 1  # IP segura
+    fi
+}
+
+# Bloquear IP usando iptables
+bloquear_ip() {
+    IP=$1
+    dialog --infobox "Bloqueando IP peligrosa: $IP" 5 50
+    iptables -A INPUT -s "$IP" -j DROP
+    iptables -A OUTPUT -d "$IP" -j DROP
+}
+
+# Actualizar lista de IPs
+actualizar_lista() {
+    IPS=$(obtener_ips_navegacion)
+
+    if [ -z "$IPS" ]; then
+        dialog --title "Sin IPs" --msgbox "No se detectaron conexiones activas de red." 7 50
+        return
+    fi
+    
+    for IP in $IPS; do
+        NOMBRE_SITIO=$(obtener_nombre_sitio "$IP")
+        if es_ip_peligrosa "$IP"; then
+            registrar_historial "$IP" "Peligrosa" "$NOMBRE_SITIO"
+            bloquear_ip "$IP"
+        else
+            registrar_historial "$IP" "Segura" "$NOMBRE_SITIO"
+        fi
+    done
+
+    dialog --title "Historial de IPs" --textbox "$HISTORIAL" 15 70
+}
+
+# ---------- PROGRAMA PRINCIPAL ----------
+
+# Detectar el entorno y actuar según el caso
+detectar_entorno
+ENTORNO=$?
+
+if [ $ENTORNO -ne 0 ]; then
+    dialog --title "Entorno no compatible" --msgbox "Este script no funciona correctamente en WSL. Ejecutalo en una máquina virtual o física." 8 60
+    clear
+    exit 1
+fi
+
+# Menú principal
+while true; do
+    exec 3>&1
+    SELECCION=$(dialog --title "Menú de Monitoreo" \
+        --menu "Seleccione una opción:" 15 50 3 \
+        1 "Actualizar lista de IPs" \
+        2 "Salir" \
+        2>&1 1>&3)
+    exit_status=$?
+    exec 3>&-
+    
+    if [ $exit_status -ne 0 ]; then
+        break
+    fi
+
+    case $SELECCION in
+        1)
+            actualizar_lista
+            ;;
+        2)
+            break
+            ;;
+    esac
+done
+
+clear
+

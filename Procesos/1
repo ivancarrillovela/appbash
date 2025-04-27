@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Verificar si dialog está instalado
+if ! command -v dialog &> /dev/null; then
+    echo "Este script requiere 'dialog'. Por favor, instálalo primero."
+    exit 1
+fi
+
+detect_environment() {
+    if grep -qEi "(microsoft|wsl)" /proc/version &> /dev/null; then
+        echo "WSL"
+    elif grep -qEi "virtual|vmware|qemu|kvm" /proc/cpuinfo; then
+        echo "VM"
+    else
+        echo "Físico"
+    fi
+}
+
+top_cpu_processes() {
+    ps -eo user,pid,%cpu,%mem,command --sort=-%cpu | head -n 21 > /tmp/processes.txt
+}
+
+top_mem_processes() {
+    ps -eo user,pid,%cpu,%mem,command --sort=-%mem | head -n 21 > /tmp/processes.txt
+}
+
+background_processes() {
+    ps -eo user,pid,tty,%cpu,%mem,command | awk '$3 == "?"' | head -n 20 > /tmp/processes.txt
+}
+
+show_process_details() {
+    PID=$(dialog --inputbox "Introduce el PID del proceso que quieres inspeccionar:" 8 50 3>&1 1>&2 2>&3)
+
+    if [ -z "$PID" ] || ! ps -p "$PID" > /dev/null 2>&1; then
+        dialog --msgbox "PID inválido o proceso no encontrado." 7 40
+        return
+    fi
+
+    {
+        echo "Detalles del proceso PID $PID"
+        echo "=============================="
+        ps -p "$PID" -o user,pid,%cpu,%mem,tty,time,cmd
+        echo
+        echo "Ruta ejecutable:"
+        readlink -f /proc/$PID/exe 2>/dev/null || echo "No disponible"
+        echo
+        echo "Argumentos:"
+        tr '\0' ' ' < /proc/$PID/cmdline 2>/dev/null || echo "No disponible"
+        echo
+        echo "Archivos abiertos:"
+        if command -v lsof &> /dev/null; then
+            lsof -p "$PID" | head -n 10
+        else
+            echo "lsof no está instalado"
+        fi
+        echo
+        echo "Árbol del proceso:"
+        if command -v pstree &> /dev/null; then
+            pstree -p "$PID" | head -n 10
+        else
+            echo "pstree no está instalado"
+        fi
+    } > /tmp/details.txt
+
+    dialog --title "Detalles del proceso $PID" --textbox /tmp/details.txt 30 90
+}
+
+main_menu() {
+    while true; do
+        OPTION=$(dialog --clear --backtitle "Monitor de Procesos - $(detect_environment)" \
+        --title "Menú Principal" \
+        --nocancel --menu "Selecciona una opción:" 20 60 6 \
+        1 "Ver procesos por CPU" \
+        2 "Ver procesos por RAM" \
+        3 "Ver procesos en segundo plano" \
+        4 "Ver detalles de un proceso por PID" \
+        5 "Volver" \
+        3>&1 1>&2 2>&3)
+
+        case $OPTION in
+            1)
+                top_cpu_processes
+                dialog --title "Top procesos por CPU" --textbox /tmp/processes.txt 20 80
+                ;;
+            2)
+                top_mem_processes
+                dialog --title "Top procesos por RAM" --textbox /tmp/processes.txt 20 80
+                ;;
+            3)
+                background_processes
+                dialog --title "Procesos en segundo plano" --textbox /tmp/processes.txt 20 80
+                ;;
+            4)
+                show_process_details
+                ;;
+            5)
+                clear
+                exit 0
+                ;;
+        esac
+    done
+}
+
+main_menu
+

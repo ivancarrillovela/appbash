@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Detectar si estamos en WSL o en un Linux real
+if grep -qi microsoft /proc/version; then
+    echo "🖥️ Detectado WSL (Windows Subsystem for Linux)"
+    powershell_path=$(wslpath "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+
+    while true; do
+        read -p "¿Deseas habilitar o deshabilitar el firewall de Windows? (habilitar/deshabilitar/salir): " accion
+        accion=$(echo "$accion" | tr '[:upper:]' '[:lower:]')
+
+        case $accion in
+            habilitar)
+                echo "🔒 Solicitando permisos de administrador para habilitar el firewall..."
+                "$powershell_path" -Command "Start-Process powershell -ArgumentList 'Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True' -Verb RunAs -Wait" 2>/dev/null
+                resultado=$?
+
+                if [ $resultado -eq 0 ]; then
+                    echo "✅ El firewall de Windows se ha habilitado correctamente."
+                else
+                    echo "❌ Has rechazado la ventana emergente o ha ocurrido un error."
+                    read -p "¿Deseas volver a intentarlo? (sí/no): " retry
+                    retry=$(echo "$retry" | tr '[:upper:]' '[:lower:]')
+                    if [[ "$retry" != "sí" ]]; then
+                        echo "🚪 Saliendo sin habilitar el firewall."
+                        break
+                    fi
+                fi
+                ;;
+
+            deshabilitar)
+                echo "🔓 Solicitando permisos de administrador para deshabilitar el firewall..."
+                "$powershell_path" -Command "Start-Process powershell -ArgumentList 'Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False' -Verb RunAs -Wait" 2>/dev/null
+                resultado=$?
+
+                if [ $resultado -eq 0 ]; then
+                    echo "✅ El firewall de Windows se ha deshabilitado correctamente."
+                else
+                    echo "❌ Has rechazado la ventana emergente o ha ocurrido un error."
+                    read -p "¿Deseas volver a intentarlo? (sí/no): " retry
+                    retry=$(echo "$retry" | tr '[:upper:]' '[:lower:]')
+                    if [[ "$retry" != "sí" ]]; then
+                        echo "🚪 Saliendo sin deshabilitar el firewall."
+                        break
+                    fi
+                fi
+                ;;
+
+            salir)
+                echo "👋 Saliendo del script."
+                exit 0
+                ;;
+
+            *)
+                echo "⚠️ Opción no válida. Por favor, escribe 'habilitar', 'deshabilitar' o 'salir'."
+                ;;
+        esac
+    done
+
+elif [ -f /etc/os-release ]; then
+    echo "🐧 Detectado Linux real (No WSL)"
+
+    while true; do
+        read -p "¿Deseas habilitar o deshabilitar el firewall de Linux? (habilitar/deshabilitar/salir): " accion
+        accion=$(echo "$accion" | tr '[:upper:]' '[:lower:]')
+
+        case $accion in
+            habilitar)
+                if command -v ufw &>/dev/null; then
+                    echo "🔒 Habilitando firewall con UFW..."
+                    sudo ufw enable 2>/dev/null
+                elif command -v firewall-cmd &>/dev/null; then
+                    echo "🔒 Habilitando firewall con firewalld..."
+                    sudo systemctl start firewalld 2>/dev/null
+                else
+                    echo "⚠️ No se encontró un firewall compatible en este sistema."
+                fi
+                ;;
+
+            deshabilitar)
+                if command -v ufw &>/dev/null; then
+                    echo "🔓 Deshabilitando firewall con UFW..."
+                    sudo ufw disable 2>/dev/null
+                elif command -v firewall-cmd &>/dev/null; then
+                    echo "🔓 Deshabilitando firewall con firewalld..."
+                    sudo systemctl stop firewalld 2>/dev/null
+                else
+                    echo "⚠️ No se encontró un firewall compatible en este sistema."
+                fi
+                ;;
+
+            salir)
+                echo "👋 Saliendo del script."
+                exit 0
+                ;;
+
+            *)
+                echo "⚠️ Opción no válida. Por favor, escribe 'habilitar', 'deshabilitar' o 'salir'."
+                ;;
+        esac
+    done
+
+else
+    echo "⚠️ No se pudo detectar el sistema operativo."
+    exit 1
+fi
+
+echo "✅ Operación completada."
+
+
