@@ -17,6 +17,8 @@ function minimos {
     dialog --infobox "Comprobando e instalando los requisitos mínimos..." 5 40
     apt-get update 
     instalar_paquete dialog
+    instalar_paquete netcat
+    instalar_paquete python3
     instalar_paquete ssh
     instalar_paquete rsync
     instalar_paquete tar

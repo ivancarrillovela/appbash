@@ -130,7 +130,7 @@ function usuarios {
             3 "Bloquear usuario" \
             4 "Listar usuarios" \
             5 "Desbloquear usuario" \
-            0 "Volver")
+            6 "Volver")
 
         case $opcion in
             1) crear_usuario ;;
@@ -138,7 +138,7 @@ function usuarios {
             3) bloquear_usuario ;;
             4) listar_usuarios ;;
             5) desbloquear_usuario ;;
-            0) break ;;
+            6) break ;;
             "") clear; echo "Has cancelado o cerrado el menú."; exit 1 ;;
             *) dialog --msgbox "Opción no válida" 8 30 ;;
         esac

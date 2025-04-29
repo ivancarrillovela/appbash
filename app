@@ -6,6 +6,7 @@ source ./usuarios.sh
 source ./copias_seguridad.sh
 source ./remoto.sh
 source ./minijuegos.sh
+source ./enviar_correo.sh
 
 # --- Variables Globales ---
 TEMP_FILE=$(mktemp) # Archivo temporal para guardar la selección del menú
@@ -21,7 +22,9 @@ function mostrar_menu_principal {
            3 "\Zb\Z8🔄 Copias de Seguridad\Zn" \
            4 "\Zb\Z8🛡️  Sistema y procesos\Zn" \
            5 "\Zb\Z8💻 Conexión Remota\Zn" \
-           6 "\Zb\Z8🎮 Minijuegos\Zn" 2>"$TEMP_FILE"
+           6 "\Zb\Z8✉️  Enviar un correo\Zn" \
+           7 "\Zb\Z8🎮 Minijuegos\Zn" 2>"$TEMP_FILE"
+           
 
     # Verificar el código de retorno
     local exit_status=$?
@@ -48,7 +51,8 @@ function ejecutar_opcion {
         3) copias_seguridad ;;
         4) ./seguridad_sistema.sh ;;
         5) remoto ;;
-        6) juegos ;;
+        6) correo ;;
+        7) juegos ;;
         *) dialog --colors --msgbox "\Zb\Z1❌ Opción no válida. Intente de nuevo.\Zn" 10 40 ;;
     esac
 }
